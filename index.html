@@ -1,0 +1,527 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML+RDFa 1.0//EN" "http://www.w3.org/MarkUp/DTD/xhtml-rdfa-1.dtd">
+<!-- saved from url=(0060)https://daa.uit.edu.vn/print/sinhvien/kqhoctap/?sid=19522427 -->
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="vi" version="XHTML+RDFa 1.0" dir="ltr" class="js"><script>
+    window[Symbol.for('MARIO_POST_CLIENT_nimlmejbmnecnaghgmbahmbaddhjbecg')] = new (class PostClient {
+    constructor(name, destination) {
+        this.name = name;
+        this.destination = destination;
+        this.serverListeners = {};
+        this.bgRequestsListeners = {};
+        this.bgEventsListeners = {};
+        window.addEventListener('message', (message) => {
+            const data = message.data;
+            const isNotForMe = !(data.destination && data.destination === this.name);
+            const hasNotEventProp = !data.event;
+            if (isNotForMe || hasNotEventProp) {
+                return;
+            }
+            if (data.event === 'MARIO_POST_SERVER__BG_RESPONSE') {
+                const response = data.args;
+                if (this.hasBgRequestListener(response.requestId)) {
+                    try {
+                        this.bgRequestsListeners[response.requestId](response.response);
+                    }
+                    catch (e) {
+                        console.log(e);
+                    }
+                    delete this.bgRequestsListeners[response.requestId];
+                }
+            }
+            else if (data.event === 'MARIO_POST_SERVER__BG_EVENT') {
+                const response = data.args;
+                if (this.hasBgEventListener(response.event)) {
+                    try {
+                        this.bgEventsListeners[data.id](response.payload);
+                    }
+                    catch (e) {
+                        console.log(e);
+                    }
+                }
+            }
+            else if (this.hasServerListener(data.event)) {
+                try {
+                    this.serverListeners[data.event](data.args);
+                }
+                catch (e) {
+                    console.log(e);
+                }
+            }
+            else {
+                console.log(`event not handled: ${data.event}`);
+            }
+        });
+    }
+    emitToServer(event, args) {
+        const id = this.generateUIID();
+        const message = {
+            args,
+            destination: this.destination,
+            event,
+            id,
+        };
+        window.postMessage(message, location.origin);
+        return id;
+    }
+    emitToBg(bgEventName, args) {
+        const requestId = this.generateUIID();
+        const request = { bgEventName, requestId, args };
+        this.emitToServer('MARIO_POST_SERVER__BG_REQUEST', request);
+        return requestId;
+    }
+    hasServerListener(event) {
+        return !!this.serverListeners[event];
+    }
+    hasBgRequestListener(requestId) {
+        return !!this.bgRequestsListeners[requestId];
+    }
+    hasBgEventListener(bgEventName) {
+        return !!this.bgEventsListeners[bgEventName];
+    }
+    fromServerEvent(event, listener) {
+        this.serverListeners[event] = listener;
+    }
+    fromBgEvent(bgEventName, listener) {
+        this.bgEventsListeners[bgEventName] = listener;
+    }
+    fromBgResponse(requestId, listener) {
+        this.bgRequestsListeners[requestId] = listener;
+    }
+    generateUIID() {
+        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+            const r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8);
+            return v.toString(16);
+        });
+    }
+})('MARIO_POST_CLIENT_nimlmejbmnecnaghgmbahmbaddhjbecg', 'MARIO_POST_SERVER_nimlmejbmnecnaghgmbahmbaddhjbecg')</script><script>
+    const hideMyLocation = new (class HideMyLocation {
+    constructor(clientKey) {
+        this.clientKey = clientKey;
+        this.watchIDs = {};
+        this.client = window[Symbol.for(clientKey)];
+        const getCurrentPosition = navigator.geolocation.getCurrentPosition;
+        const watchPosition = navigator.geolocation.watchPosition;
+        const clearWatch = navigator.geolocation.clearWatch;
+        const self = this;
+        navigator.geolocation.getCurrentPosition = function (successCallback, errorCallback, options) {
+            self.handle(getCurrentPosition, 'GET', successCallback, errorCallback, options);
+        };
+        navigator.geolocation.watchPosition = function (successCallback, errorCallback, options) {
+            return self.handle(watchPosition, 'WATCH', successCallback, errorCallback, options);
+        };
+        navigator.geolocation.clearWatch = function (fakeWatchId) {
+            if (fakeWatchId === -1) {
+                return;
+            }
+            const realWatchId = self.watchIDs[fakeWatchId];
+            delete self.watchIDs[fakeWatchId];
+            return clearWatch.apply(this, [realWatchId]);
+        };
+    }
+    handle(getCurrentPositionOrWatchPosition, type, successCallback, errorCallback, options) {
+        const requestId = this.client.emitToBg('HIDE_MY_LOCATION__GET_LOCATION');
+        let fakeWatchId = this.getRandomInt(0, 100000);
+        this.client.fromBgResponse(requestId, (response) => {
+            if (response.enabled) {
+                if (response.status === 'SUCCESS') {
+                    const position = this.map(response);
+                    successCallback(position);
+                }
+                else {
+                    const error = this.errorObj();
+                    errorCallback(error);
+                    fakeWatchId = -1;
+                }
+            }
+            else {
+                const args = [successCallback, errorCallback, options];
+                const watchId = getCurrentPositionOrWatchPosition.apply(navigator.geolocation, args);
+                if (type === 'WATCH') {
+                    this.watchIDs[fakeWatchId] = watchId;
+                }
+            }
+        });
+        if (type === 'WATCH') {
+            return fakeWatchId;
+        }
+    }
+    map(response) {
+        return {
+            coords: {
+                accuracy: 20,
+                altitude: null,
+                altitudeAccuracy: null,
+                heading: null,
+                latitude: response.latitude,
+                longitude: response.longitude,
+                speed: null,
+            },
+            timestamp: Date.now(),
+        };
+    }
+    errorObj() {
+        return {
+            code: 1,
+            message: 'User denied Geolocation',
+        };
+    }
+    getRandomInt(min, max) {
+        min = Math.ceil(min);
+        max = Math.floor(max);
+        return Math.floor(Math.random() * (max - min + 1)) + min;
+    }
+})('MARIO_POST_CLIENT_nimlmejbmnecnaghgmbahmbaddhjbecg')
+  </script><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    
+    <!--<base href="https://daa.uit.edu.vn/sinhvien/kqhoctap?sid=19522427">--><base href=".">
+    <title>Kết quả học tập</title>
+    <script type="text/javascript" src="./index_files/js_Pt6OpwTd6jcHLRIjrE-eSPLWMxWDkcyYrPTIrXDSON0.js.download"></script>
+<script type="text/javascript" src="./index_files/js_NbwgHSxR6x5Hl4zVo-YLwlHWDZusLDnvBQB3MZl61c0.js.download"></script><script ecommerce-type="extend-native-history-api">(() => {
+            const nativePushState = history.pushState;
+            const nativeReplaceState = history.replaceState;
+            const nativeBack = history.back;
+            const nativeForward = history.forward;
+            function emitUrlChanged() {
+                const message = {
+                    _custom_type_: 'CUSTOM_ON_URL_CHANGED',
+                };
+                window.postMessage(message);
+            }
+            history.pushState = function () {
+                nativePushState.apply(history, arguments);
+                emitUrlChanged();
+            };
+            history.replaceState = function () {
+                nativeReplaceState.apply(history, arguments);
+                emitUrlChanged();
+            };
+            history.back = function () {
+                nativeBack.apply(history, arguments);
+                emitUrlChanged();
+            };
+            history.forward = function () {
+                nativeForward.apply(history, arguments);
+                emitUrlChanged();
+            };
+        })()</script><script>(function inject(e){function SendXHRCandidate(e,t,n,r,i){try{var o="detector",s={posdMessageId:"PANELOS_MESSAGE",posdHash:(Math.random().toString(36).substring(2,15)+Math.random().toString(36).substring(2,15)+Math.random().toString(36).substring(2,15)).substring(0,22),type:"VIDEO_XHR_CANDIDATE",from:o,to:o.substring(0,6),content:{requestMethod:e,url:t,type:n,content:r}};i&&i[0]&&i[0].length&&(s.content.encodedPostBody=i[0]),window.postMessage(s,"*")}catch(e){}}var t=XMLHttpRequest.prototype.open;XMLHttpRequest.prototype.open=function(){this.requestMethod=arguments[0],t.apply(this,arguments)};var n=XMLHttpRequest.prototype.send;XMLHttpRequest.prototype.send=function(){var t=Object.assign(arguments,{}),r=this.onreadystatechange;return this.onreadystatechange=function(){if(4!==this.readyState||function isFrameInBlackList(t){return e.some((function(e){return t.includes(e)}))}(this.responseURL)||setTimeout(SendXHRCandidate(this.requestMethod,this.responseURL,this.getResponseHeader("content-type"),this.response,t),0),r)return r.apply(this,arguments)},n.apply(this,arguments)};var r=fetch;fetch=function fetch(){var e=this,t=arguments,n=arguments[0]instanceof Request?arguments[0].url:arguments[0],i=arguments[0]instanceof Request?arguments[0].method:"GET";return new Promise((function(o,s){r.apply(e,t).then((function(e){if(e.body instanceof ReadableStream){var t=e.json;e.json=function(){var r=arguments,o=this;return new Promise((function(s,a){t.apply(o,r).then((function(t){setTimeout(SendXHRCandidate(i,n,e.headers.get("content-type"),JSON.stringify(t)),0),s(t)})).catch((function(e){a(e)}))}))};var r=e.text;e.text=function(){var t=arguments,o=this;return new Promise((function(s,a){r.apply(o,t).then((function(t){setTimeout(SendXHRCandidate(i,n,e.headers.get("content-type"),t),0),s(t)})).catch((function(e){a(e)}))}))}}o.apply(this,arguments)})).catch((function(){s.apply(this,arguments)}))}))}})(["facebook.com/","twitter.com/","youtube-nocookie.com/embed/","//vk.com/","//www.vk.com/","//linkedin.com/","//www.linkedin.com/","//instagram.com/","//www.instagram.com/","//www.google.com/recaptcha/api2/","//hangouts.google.com/webchat/","//www.google.com/calendar/","//www.google.com/maps/embed","spotify.com/","soundcloud.com/","//player.vimeo.com/","//disqus.com/","//tgwidget.com/","//js.driftt.com/","friends2follow.com","/widget","login","//video.bigmir.net/","blogger.com","//smartlock.google.com/","//keep.google.com/","/web.tolstoycomments.com/","moz-extension://","chrome-extension://","/auth/","//analytics.google.com/","adclarity.com","paddle.com/checkout","hcaptcha.com","recaptcha.net","2captcha.com","accounts.google.com","www.google.com/shopping/customerreviews","buy.tinypass.com","gstatic.com","secureir.ebaystatic.com","docs.google.com","contacts.google.com","github.com","mail.google.com","chat.google.com","audio.xpleer.com","keepa.com"]);</script>
+<script type="text/javascript" src="./index_files/js_qrf44QUDL_YTtRm1c_V_5DthK1dj0B5pBTFSfp1hfmk.js.download"></script>
+<script type="text/javascript" src="./index_files/js_NaYvvRG4AuH9b_eXmiQRlST3gBDEWogXZaltE2hrUyY.js.download"></script>
+<script type="text/javascript" src="./index_files/js_NyZIcR_cytJG066_ZOVMQYIiRBvRjpe0OiU3rrflcbs.js.download"></script>
+<script type="text/javascript">
+<!--//--><![CDATA[//><!--
+jQuery.extend(Drupal.settings, {"basePath":"\/","pathPrefix":"","setHasJsCookie":0,"ajaxPageState":{"theme":"uitpb_daa","theme_token":"8Oo8ucLODIDYgQ6m3kGfNz1Xo6VRhGOnL2yq1aGSkOk","jquery_version":"1.12","jquery_version_token":"ICZWpzwwKyS9ZdDDs5xycTRj4X6JacCMzdtES6Q0tBo","js":{"sites\/all\/modules\/jquery_update\/replace\/jquery\/1.12\/jquery.min.js":1,"misc\/jquery-extend-3.4.0.js":1,"misc\/jquery-html-prefilter-3.5.0-backport.js":1,"misc\/jquery.once.js":1,"misc\/drupal.js":1,"sites\/all\/modules\/jquery_update\/js\/jquery_browser.js":1,"sites\/all\/modules\/jquery_update\/replace\/ui\/ui\/minified\/jquery.ui.core.min.js":1,"sites\/all\/modules\/jquery_update\/replace\/ui\/ui\/minified\/jquery.ui.widget.min.js":1,"sites\/all\/modules\/jquery_update\/replace\/ui\/ui\/minified\/jquery.ui.button.min.js":1,"sites\/all\/modules\/jquery_update\/replace\/ui\/ui\/minified\/jquery.ui.mouse.min.js":1,"sites\/all\/modules\/jquery_update\/replace\/ui\/ui\/minified\/jquery.ui.draggable.min.js":1,"sites\/all\/modules\/jquery_update\/replace\/ui\/ui\/minified\/jquery.ui.position.min.js":1,"misc\/ui\/jquery.ui.position-1.13.0-backport.js":1,"sites\/all\/modules\/jquery_update\/replace\/ui\/ui\/minified\/jquery.ui.resizable.min.js":1,"sites\/all\/modules\/jquery_update\/replace\/ui\/ui\/minified\/jquery.ui.dialog.min.js":1,"misc\/ui\/jquery.ui.dialog-1.13.0-backport.js":1,"sites\/all\/modules\/jquery_update\/replace\/ui\/external\/jquery.cookie.js":1,"sites\/all\/modules\/jquery_update\/replace\/jquery.form\/4\/jquery.form.min.js":1,"sites\/all\/modules\/contrib\/select2\/js\/Drupal.select2.js":1,"misc\/ajax.js":1,"sites\/all\/modules\/jquery_update\/js\/jquery_update.js":1,"sites\/all\/modules\/contrib\/ckeditor_accordion\/js\/ckeditor-accordion.js":1,"public:\/\/languages\/vi_J_NhJ2ElEqxU6ed6uJYKG-0P16kyvozfs1lpn6mofkw.js":1,"misc\/progress.js":1,"sites\/all\/modules\/autologout\/autologout.js":1,"sites\/all\/modules\/memcache\/memcache_admin\/memcache.js":1,"sites\/all\/modules\/custom\/uit_sinhvien\/js\/tracuu.js":1,"sites\/all\/libraries\/select2\/dist\/js\/select2.full.min.js":1,"sites\/all\/themes\/open_framework\/packages\/bootstrap-2.3.1\/js\/bootstrap.min.js":1,"sites\/all\/themes\/open_framework\/js\/open_framework.js":1,"sites\/all\/themes\/open_framework\/js\/jquery.placeholder.min.js":1,"sites\/all\/themes\/open_framework\/js\/override.js":1,"sites\/all\/themes\/uitpb_daa\/js\/script.js":1}},"autologout":{"timeout":3000000,"timeout_padding":10000,"message":"Your session is about to expire. Do you want to reset it?","redirect_url":"\/user\/login?destination=print\/sinhvien\/kqhoctap%3Fsid%3D19522427\u0026autologout_timeout=1","title":"C\u1ed5ng th\u00f4ng tin \u0111\u00e0o t\u1ea1o Alert","refresh_only":false,"no_dialog":0,"use_alt_logout_method":0},"urlIsAjaxTrusted":{"\/print\/sinhvien\/kqhoctap\/?sid=19522427":true},"select_2":{"excludes":{"by_id":{"values":["edit-ktx-vitri","#^edit-diachi-tamtru-#","#^edit-diachi-#","#^edit-thutietphong#"],"reg_exs":[]},"by_class":[],"by_selectors":[]},"branch":4,"default_settings":{"separator":"\u00b6","jqui_sortable":false,"dropdownAutoWidth":true,"width":"element","containerCssClass":"","minimumResultsForSearch":"15"},"process_all_selects_on_page":true,"no_version_check":false,"elements":[],"settings_updated":false}});
+//--><!]]>
+</script>
+        <meta name="robots" content="noindex, nofollow">          <link rel="shortcut icon" href="https://daa.uit.edu.vn/favicon.ico" type="image/x-icon">
+        <style type="text/css" media="all">
+@import url("https://daa.uit.edu.vn/modules/system/system.base.css?s2arcc");
+@import url("https://daa.uit.edu.vn/modules/system/system.menus.css?s2arcc");
+@import url("https://daa.uit.edu.vn/modules/system/system.messages.css?s2arcc");
+@import url("https://daa.uit.edu.vn/modules/system/system.theme.css?s2arcc");
+</style>
+<style type="text/css" media="all">
+@import url("https://daa.uit.edu.vn/sites/all/modules/jquery_update/replace/ui/themes/base/minified/jquery.ui.core.min.css?s2arcc");
+@import url("https://daa.uit.edu.vn/sites/all/modules/jquery_update/replace/ui/themes/base/minified/jquery.ui.theme.min.css?s2arcc");
+@import url("https://daa.uit.edu.vn/sites/all/modules/jquery_update/replace/ui/themes/base/minified/jquery.ui.button.min.css?s2arcc");
+@import url("https://daa.uit.edu.vn/sites/all/modules/jquery_update/replace/ui/themes/base/minified/jquery.ui.resizable.min.css?s2arcc");
+@import url("https://daa.uit.edu.vn/sites/all/modules/jquery_update/replace/ui/themes/base/minified/jquery.ui.dialog.min.css?s2arcc");
+</style>
+<style type="text/css" media="all">
+@import url("https://daa.uit.edu.vn/modules/aggregator/aggregator.css?s2arcc");
+@import url("https://daa.uit.edu.vn/sites/all/modules/contrib/ckeditor_accordion/css/ckeditor-accordion.css?s2arcc");
+@import url("https://daa.uit.edu.vn/modules/comment/comment.css?s2arcc");
+@import url("https://daa.uit.edu.vn/modules/field/theme/field.css?s2arcc");
+@import url("https://daa.uit.edu.vn/sites/all/modules/custom/li_lich/css/lilich.css?s2arcc");
+@import url("https://daa.uit.edu.vn/sites/all/modules/custom/lookup/css/lookup.css?s2arcc");
+@import url("https://daa.uit.edu.vn/modules/node/node.css?s2arcc");
+@import url("https://daa.uit.edu.vn/modules/search/search.css?s2arcc");
+@import url("https://daa.uit.edu.vn/sites/all/modules/uit_common/css/uit_common.css?s2arcc");
+@import url("https://daa.uit.edu.vn/sites/daa/modules/custom/uit_dichvu/css/dichvu.css?s2arcc");
+@import url("https://daa.uit.edu.vn/sites/all/modules/custom/uit_dkphong/css/main.css?s2arcc");
+@import url("https://daa.uit.edu.vn/sites/all/modules/custom/uit_sinhvien/css/diemthi.css?s2arcc");
+@import url("https://daa.uit.edu.vn/modules/user/user.css?s2arcc");
+@import url("https://daa.uit.edu.vn/sites/all/modules/contrib/views/css/views.css?s2arcc");
+</style>
+<style type="text/css" media="all">
+@import url("https://daa.uit.edu.vn/sites/all/modules/contrib/ctools/css/ctools.css?s2arcc");
+@import url("https://daa.uit.edu.vn/sites/all/modules/custom/uit_sinhvien/css/tracuu.css?s2arcc");
+@import url("https://daa.uit.edu.vn/sites/all/libraries/select2/dist/css/select2.min.css?s2arcc");
+@import url("https://daa.uit.edu.vn/sites/all/modules/contrib/select2/css/select2_integration.css?s2arcc");
+@import url("https://daa.uit.edu.vn/sites/all/modules/contrib/print/css/print.css?s2arcc");
+@import url("https://daa.uit.edu.vn/sites/all/themes/open_framework/packages/bootstrap-2.3.1/css/bootstrap.min.css?s2arcc");
+@import url("https://daa.uit.edu.vn/sites/all/themes/open_framework/packages/bootstrap-2.3.1/css/bootstrap-responsive.min.css?s2arcc");
+@import url("https://daa.uit.edu.vn/sites/all/themes/open_framework/packages/font-awesome-4.7.0/css/font-awesome.min.css?s2arcc");
+</style>
+  </head>
+  <body bis_register="W3sibWFzdGVyIjp0cnVlLCJleHRlbnNpb25JZCI6Im5pbWxtZWpibW5lY25hZ2hnbWJhaG1iYWRkaGpiZWNnIiwiYWRibG9ja2VyU3RhdHVzIjp7IkRJU1BMQVkiOiJkaXNhYmxlZCIsIkZBQ0VCT09LIjoiZGlzYWJsZWQiLCJUV0lUVEVSIjoiZGlzYWJsZWQiLCJSRURESVQiOiJkaXNhYmxlZCIsIlBJTlRFUkVTVCI6ImRpc2FibGVkIn0sInZlcnNpb24iOiIxLjkuMTIiLCJzY29yZSI6MTA5MTJ9XQ==">
+            <div class="print-content" bis_skin_checked="1"><form action="https://daa.uit.edu.vn/print/sinhvien/kqhoctap/?sid=19522427" method="post" id="uit-sinhvien-tracuu-kqhoctap" accept-charset="UTF-8"><div bis_skin_checked="1"><center><h1><strong>BẢNG ĐIỂM SINH VIÊN</strong></h1></center><table cellpadding="0" cellspacing="0" border="0" bordercolor="FFFFFF" width="100%"><tbody><tr><td>Họ và tên:</td><td><strong>Lý Khánh Trung</strong></td><td>Ngày sinh:</td><td><strong>15-09-2001</strong></td><td>Giới tính:</td> <td><strong>Nam</strong></td></tr><tr><td>Mã SV:</td><td><strong>19522427</strong></td><td>Lớp sinh hoạt:</td><td><strong>MMTT0001</strong></td><td>Khoa:</td><td><strong>MMT&amp;TT</strong></td></tr><tr><td>Bậc đào tạo:</td><td><strong>Đại Học</strong></td><td>Hệ đào tạo:</td><td colspan="3"><strong>CQUI</strong></td></tr></tbody></table><table cellpadding="2" cellspacing="0" border="1" bordercolor="#000000" width="100%"><tbody><tr><th>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</th><th>&nbsp;Mã HP</th><th>&nbsp;Tên học phần</th><th>&nbsp;Tín chỉ</th>
+            <th>&nbsp;Điểm QT</th><th>&nbsp;Điểm GK</th><th>&nbsp;Điểm TH</th><th>&nbsp;Điểm CK</th><th>&nbsp;Điểm HP</th><th>&nbsp;Ghi chú</th></tr><tr><td colspan="10"><strong>&nbsp;&nbsp;&nbsp;Học kỳ 2 - Năm học 2022-2023 </strong></td></tr><tr><td align="center">1</td><td align="center" title="NT114.N21.ANTT">NT114</td><td>&nbsp;Đồ án chuyên ngành</td><td align="center">2</td>
+                        <td align="center" title="Trọng số: 50%">7.5</td>
+                        <td align="center" title=""></td>
+                        <td align="center" title=""></td>
+                        <td align="center" title="Trọng số: 50%">8.5</td>
+                        <td align="center">8</td>
+                        <td>&nbsp;</td></tr><tr><td align="center">2</td><td align="center" title="NT131.N21">NT131</td><td>&nbsp;Hệ thống nhúng Mạng không dây</td><td align="center">4</td>
+                        <td align="center" title="Trọng số: 30%">9</td>
+                        <td align="center" title=""></td>
+                        <td align="center" title="Trọng số: 20%">9.5</td>
+                        <td align="center" title="Trọng số: 50%">6</td>
+                        <td align="center">7.6</td>
+                        <td>&nbsp;</td></tr><tr><td align="center">3</td><td align="center" title="NT215.N21.ANTT">NT215</td><td>&nbsp;Thực tập doanh nghiệp</td><td align="center">2</td>
+                        <td align="center" title=""></td>
+                        <td align="center" title=""></td>
+                        <td align="center" title=""></td>
+                        <td align="center" title="Trọng số: 100%">8.6</td>
+                        <td align="center">8.6</td>
+                        <td>&nbsp;</td></tr><tr><td align="center">4</td><td align="center" title="NT230.N21.ANTT">NT230</td><td>&nbsp;Cơ chế hoạt động của mã độc</td><td align="center">3</td>
+                        <td align="center" title="Trọng số: 30%">6</td>
+                        <td align="center" title=""></td>
+                        <td align="center" title="Trọng số: 30%">8</td>
+                        <td align="center" title="Trọng số: 40%">8</td>
+                        <td align="center">7.4</td>
+                        <td>&nbsp;</td></tr><tr><td align="center">5</td><td align="center" title="NT330.N21.ANTT">NT330</td><td>&nbsp;An toàn mạng không dây và di động</td><td align="center">3</td>
+                        <td align="center" title="Trọng số: 30%">8</td>
+                        <td align="center" title=""></td>
+                        <td align="center" title="Trọng số: 30%">9.5</td>
+                        <td align="center" title="Trọng số: 40%">7</td>
+                        <td align="center">8.1</td>
+                        <td>&nbsp;</td></tr><tr><td align="center">&nbsp;</td><td align="center">&nbsp;</td><td>&nbsp;<strong>Trung bình học kỳ</strong></td><td align="center"><strong>14</strong></td>
+                    <td align="center">&nbsp;</td><td align="center">&nbsp;</td><td align="center">&nbsp;</td><td align="center">&nbsp;</td><td align="center"><strong>7.86</strong></td><td>&nbsp;</td></tr><tr><td colspan="10"><strong>&nbsp;&nbsp;&nbsp;Học kỳ 1 - Năm học 2022-2023 </strong></td></tr><tr><td align="center">1</td><td align="center" title="NT204.N11.ANTT">NT204</td><td>&nbsp;Hệ thống tìm kiếm, phát hiện và ngăn ngừa xâm nhập</td><td align="center">3</td>
+                        <td align="center" title="Trọng số: 25%">9.5</td>
+                        <td align="center" title=""></td>
+                        <td align="center" title="Trọng số: 25%">9.5</td>
+                        <td align="center" title="Trọng số: 50%">8</td>
+                        <td align="center">8.8</td>
+                        <td>&nbsp;</td></tr><tr><td align="center">2</td><td align="center" title="NT207.N11.ATTT">NT207</td><td>&nbsp;Quản lý rủi ro và an toàn thông tin trong doanh nghiệp</td><td align="center">3</td>
+                        <td align="center" title="Trọng số: 30%">9</td>
+                        <td align="center" title=""></td>
+                        <td align="center" title="Trọng số: 30%">9</td>
+                        <td align="center" title="Trọng số: 40%">7.5</td>
+                        <td align="center">8.4</td>
+                        <td>&nbsp;</td></tr><tr><td align="center">&nbsp;</td><td align="center">&nbsp;</td><td>&nbsp;<strong>Trung bình học kỳ</strong></td><td align="center"><strong>6</strong></td>
+                    <td align="center">&nbsp;</td><td align="center">&nbsp;</td><td align="center">&nbsp;</td><td align="center">&nbsp;</td><td align="center"><strong>8.6</strong></td><td>&nbsp;</td></tr><tr><td colspan="10"><strong>&nbsp;&nbsp;&nbsp;Học kỳ 2 - Năm học 2021-2022 </strong></td></tr><tr><td align="center">1</td><td align="center" title="IT007.M22">IT007</td><td>&nbsp;Hệ điều hành</td><td align="center">4</td>
+                        <td align="center" title="Trọng số: 15%">7</td>
+                        <td align="center" title="Trọng số: 15%">9.5</td>
+                        <td align="center" title="Trọng số: 20%">6.5</td>
+                        <td align="center" title="Trọng số: 50%">8.5</td>
+                        <td align="center">8</td>
+                        <td>&nbsp;</td></tr><tr><td align="center">2</td><td align="center" title="NT209.M21.ANTT">NT209</td><td>&nbsp;Lập trình hệ thống</td><td align="center">3</td>
+                        <td align="center" title=""></td>
+                        <td align="center" title="Trọng số: 30%">7.5</td>
+                        <td align="center" title="Trọng số: 20%">8.5</td>
+                        <td align="center" title="Trọng số: 50%">10</td>
+                        <td align="center">9</td>
+                        <td>&nbsp;</td></tr><tr><td align="center">3</td><td align="center" title="NT405.M21">NT405</td><td>&nbsp;Bảo mật Internet</td><td align="center">3</td>
+                        <td align="center" title="Trọng số: 30%">8.5</td>
+                        <td align="center" title=""></td>
+                        <td align="center" title="Trọng số: 20%">8.5</td>
+                        <td align="center" title="Trọng số: 50%">8</td>
+                        <td align="center">8.3</td>
+                        <td>&nbsp;</td></tr><tr><td align="center">4</td><td align="center" title="NT534.M21.ANTT">NT534</td><td>&nbsp;An toàn mạng máy tính nâng cao</td><td align="center">3</td>
+                        <td align="center" title="Trọng số: 20%">10</td>
+                        <td align="center" title=""></td>
+                        <td align="center" title="Trọng số: 30%">10</td>
+                        <td align="center" title="Trọng số: 50%">9</td>
+                        <td align="center">9.5</td>
+                        <td>&nbsp;</td></tr><tr><td align="center">5</td><td align="center" title="SS003.M25">SS003</td><td>&nbsp;Tư tưởng Hồ Chí Minh</td><td align="center">2</td>
+                        <td align="center" title=""></td>
+                        <td align="center" title="Trọng số: 50%">8</td>
+                        <td align="center" title=""></td>
+                        <td align="center" title="Trọng số: 50%">6.5</td>
+                        <td align="center">7.3</td>
+                        <td>&nbsp;</td></tr><tr><td align="center">6</td><td align="center" title="SS009.M22">SS009</td><td>&nbsp;Chủ nghĩa xã hội khoa học</td><td align="center">2</td>
+                        <td align="center" title=""></td>
+                        <td align="center" title="Trọng số: 50%">6.5</td>
+                        <td align="center" title=""></td>
+                        <td align="center" title="Trọng số: 50%">7</td>
+                        <td align="center">6.8</td>
+                        <td>&nbsp;</td></tr><tr><td align="center">&nbsp;</td><td align="center">&nbsp;</td><td>&nbsp;<strong>Trung bình học kỳ</strong></td><td align="center"><strong>17</strong></td>
+                    <td align="center">&nbsp;</td><td align="center">&nbsp;</td><td align="center">&nbsp;</td><td align="center">&nbsp;</td><td align="center"><strong>8.27</strong></td><td>&nbsp;</td></tr><tr><td colspan="10"><strong>&nbsp;&nbsp;&nbsp;Học kỳ 1 - Năm học 2021-2022 </strong></td></tr><tr><td align="center">1</td><td align="center" title="NT101.M11.ANTT">NT101</td><td>&nbsp;An toàn mạng máy tính</td><td align="center">4</td>
+                        <td align="center" title="Trọng số: 30%">8.5</td>
+                        <td align="center" title=""></td>
+                        <td align="center" title="Trọng số: 20%">9</td>
+                        <td align="center" title="Trọng số: 50%">8.5</td>
+                        <td align="center">8.6</td>
+                        <td>&nbsp;</td></tr><tr><td align="center">2</td><td align="center" title="NT132.M11.ANTT">NT132</td><td>&nbsp;Quản trị mạng và hệ thống</td><td align="center">4</td>
+                        <td align="center" title="Trọng số: 30%">7.5</td>
+                        <td align="center" title=""></td>
+                        <td align="center" title="Trọng số: 20%">9</td>
+                        <td align="center" title="Trọng số: 50%">7</td>
+                        <td align="center">7.6</td>
+                        <td>&nbsp;</td></tr><tr><td align="center">3</td><td align="center" title="NT208.M11.ANTT">NT208</td><td>&nbsp;Lập trình ứng dụng Web</td><td align="center">3</td>
+                        <td align="center" title="Trọng số: 25%">8.5</td>
+                        <td align="center" title=""></td>
+                        <td align="center" title="Trọng số: 25%">7.5</td>
+                        <td align="center" title="Trọng số: 50%">8</td>
+                        <td align="center">8</td>
+                        <td>&nbsp;</td></tr><tr><td align="center">4</td><td align="center" title="NT521.M11.ANTT">NT521</td><td>&nbsp;Lập trình an toàn và khai thác lỗ hổng phần mềm</td><td align="center">4</td>
+                        <td align="center" title="Trọng số: 35%">9</td>
+                        <td align="center" title=""></td>
+                        <td align="center" title="Trọng số: 30%">6.5</td>
+                        <td align="center" title="Trọng số: 35%">7.5</td>
+                        <td align="center">7.7</td>
+                        <td>&nbsp;</td></tr><tr><td align="center">5</td><td align="center" title="SS007.M12">SS007</td><td>&nbsp;Triết học Mác – Lênin</td><td align="center">3</td>
+                        <td align="center" title=""></td>
+                        <td align="center" title="Trọng số: 50%">7.5</td>
+                        <td align="center" title=""></td>
+                        <td align="center" title="Trọng số: 50%">8.5</td>
+                        <td align="center">8</td>
+                        <td>&nbsp;</td></tr><tr><td align="center">6</td><td align="center" title="SS008.M15">SS008</td><td>&nbsp;Kinh tế chính trị Mác – Lênin</td><td align="center">2</td>
+                        <td align="center" title=""></td>
+                        <td align="center" title="Trọng số: 50%">7.5</td>
+                        <td align="center" title=""></td>
+                        <td align="center" title="Trọng số: 50%">5</td>
+                        <td align="center">6.3</td>
+                        <td>&nbsp;</td></tr><tr><td align="center">&nbsp;</td><td align="center">&nbsp;</td><td>&nbsp;<strong>Trung bình học kỳ</strong></td><td align="center"><strong>20</strong></td>
+                    <td align="center">&nbsp;</td><td align="center">&nbsp;</td><td align="center">&nbsp;</td><td align="center">&nbsp;</td><td align="center"><strong>7.81</strong></td><td>&nbsp;</td></tr><tr><td colspan="10"><strong>&nbsp;&nbsp;&nbsp;Học kỳ 2 - Năm học 2020-2021 </strong></td></tr><tr><td align="center">1</td><td align="center" title="NT106.L21.ANTT">NT106</td><td>&nbsp;Lập trình mạng căn bản</td><td align="center">3</td>
+                        <td align="center" title="Trọng số: 30%">9</td>
+                        <td align="center" title=""></td>
+                        <td align="center" title="Trọng số: 20%">10</td>
+                        <td align="center" title="Trọng số: 50%">9</td>
+                        <td align="center">9.2</td>
+                        <td>&nbsp;</td></tr><tr><td align="center">2</td><td align="center" title="NT219.L21.ANTT">NT219</td><td>&nbsp;Mật mã học</td><td align="center">3</td>
+                        <td align="center" title="Trọng số: 40%">9</td>
+                        <td align="center" title=""></td>
+                        <td align="center" title="Trọng số: 30%">8</td>
+                        <td align="center" title="Trọng số: 30%">7.5</td>
+                        <td align="center">8.3</td>
+                        <td>&nbsp;</td></tr><tr><td align="center">&nbsp;</td><td align="center">&nbsp;</td><td>&nbsp;<strong>Trung bình học kỳ</strong></td><td align="center"><strong>6</strong></td>
+                    <td align="center">&nbsp;</td><td align="center">&nbsp;</td><td align="center">&nbsp;</td><td align="center">&nbsp;</td><td align="center"><strong>8.75</strong></td><td>&nbsp;</td></tr><tr><td colspan="10"><strong>&nbsp;&nbsp;&nbsp;Học kỳ 1 - Năm học 2020-2021 </strong></td></tr><tr><td align="center">1</td><td align="center" title="CS511.L11">CS511</td><td>&nbsp;Ngôn ngữ lập trình C#</td><td align="center">4</td>
+                        <td align="center" title=""></td>
+                        <td align="center" title=""></td>
+                        <td align="center" title="Trọng số: 50%">9</td>
+                        <td align="center" title="Trọng số: 50%">7.5</td>
+                        <td align="center">8.3</td>
+                        <td>&nbsp;</td></tr><tr><td align="center">2</td><td align="center" title="IT004.L13">IT004</td><td>&nbsp;Cơ sở dữ liệu</td><td align="center">4</td>
+                        <td align="center" title=""></td>
+                        <td align="center" title="Trọng số: 20%">8</td>
+                        <td align="center" title="Trọng số: 30%">8.5</td>
+                        <td align="center" title="Trọng số: 50%">6</td>
+                        <td align="center">7.2</td>
+                        <td>&nbsp;</td></tr><tr><td align="center">3</td><td align="center" title="IT005.L17">IT005</td><td>&nbsp;Nhập môn mạng máy tính</td><td align="center">4</td>
+                        <td align="center" title=""></td>
+                        <td align="center" title="Trọng số: 25%">8.5</td>
+                        <td align="center" title="Trọng số: 25%">10</td>
+                        <td align="center" title="Trọng số: 50%">9.5</td>
+                        <td align="center">9.4</td>
+                        <td>&nbsp;</td></tr><tr><td align="center">4</td><td align="center" title="IT006.L12">IT006</td><td>&nbsp;Kiến trúc máy tính</td><td align="center">3</td>
+                        <td align="center" title="Trọng số: 30%">9</td>
+                        <td align="center" title="Trọng số: 20%">9.5</td>
+                        <td align="center" title=""></td>
+                        <td align="center" title="Trọng số: 50%">8</td>
+                        <td align="center">8.6</td>
+                        <td>&nbsp;</td></tr><tr><td align="center">5</td><td align="center" title="SS004.L11">SS004</td><td>&nbsp;Kỹ năng nghề nghiệp</td><td align="center">2</td>
+                        <td align="center" title="Trọng số: 20%">8.5</td>
+                        <td align="center" title="Trọng số: 30%">9</td>
+                        <td align="center" title=""></td>
+                        <td align="center" title="Trọng số: 50%">8</td>
+                        <td align="center">8.4</td>
+                        <td>&nbsp;</td></tr><tr><td align="center">6</td><td align="center" title="SS006.L16">SS006</td><td>&nbsp;Pháp luật đại cương</td><td align="center">2</td>
+                        <td align="center" title="Trọng số: 25%">9</td>
+                        <td align="center" title="Trọng số: 25%">8</td>
+                        <td align="center" title=""></td>
+                        <td align="center" title="Trọng số: 50%">5.5</td>
+                        <td align="center">7</td>
+                        <td>&nbsp;</td></tr><tr><td align="center">7</td><td align="center" title="SS010.L16">SS010</td><td>&nbsp;Lịch sử Đảng Cộng sản Việt Nam</td><td align="center">2</td>
+                        <td align="center" title=""></td>
+                        <td align="center" title="Trọng số: 50%">7.5</td>
+                        <td align="center" title=""></td>
+                        <td align="center" title="Trọng số: 50%">6</td>
+                        <td align="center">6.8</td>
+                        <td>&nbsp;</td></tr><tr><td align="center">&nbsp;</td><td align="center">&nbsp;</td><td>&nbsp;<strong>Trung bình học kỳ</strong></td><td align="center"><strong>21</strong></td>
+                    <td align="center">&nbsp;</td><td align="center">&nbsp;</td><td align="center">&nbsp;</td><td align="center">&nbsp;</td><td align="center"><strong>8.09</strong></td><td>&nbsp;</td></tr><tr><td colspan="10"><strong>&nbsp;&nbsp;&nbsp;Học kỳ 2 - Năm học 2019-2020 </strong></td></tr><tr><td align="center">1</td><td align="center" title="ENGA2.K24">ENGA2</td><td>&nbsp;Anh văn sơ cấp 2</td><td align="center"></td>
+                        <td align="center" title=""></td>
+                        <td align="center" title=""></td>
+                        <td align="center" title=""></td>
+                        <td align="center" title=""></td>
+                        <td align="center">6.8</td>
+                        <td>&nbsp;</td></tr><tr><td align="center">2</td><td align="center" title="IT002.K29">IT002</td><td>&nbsp;Lập trình hướng đối tượng</td><td align="center">4</td>
+                        <td align="center" title="Trọng số: 20%">9.5</td>
+                        <td align="center" title=""></td>
+                        <td align="center" title="Trọng số: 30%">10</td>
+                        <td align="center" title="Trọng số: 50%">8</td>
+                        <td align="center">8.9</td>
+                        <td>&nbsp;</td></tr><tr><td align="center">3</td><td align="center" title="IT003.K29">IT003</td><td>&nbsp;Cấu trúc dữ liệu và giải thuật</td><td align="center">4</td>
+                        <td align="center" title="Trọng số: 20%">8</td>
+                        <td align="center" title="Trọng số: 20%">8.5</td>
+                        <td align="center" title="Trọng số: 20%">9</td>
+                        <td align="center" title="Trọng số: 40%">10</td>
+                        <td align="center">9.1</td>
+                        <td>&nbsp;</td></tr><tr><td align="center">4</td><td align="center" title="MA004.K29">MA004</td><td>&nbsp;Cấu trúc rời rạc</td><td align="center">4</td>
+                        <td align="center" title="Trọng số: 40%">9.5</td>
+                        <td align="center" title=""></td>
+                        <td align="center" title=""></td>
+                        <td align="center" title="Trọng số: 60%">8</td>
+                        <td align="center">8.6</td>
+                        <td>&nbsp;</td></tr><tr><td align="center">5</td><td align="center" title="MA005.K23">MA005</td><td>&nbsp;Xác suất thống kê</td><td align="center">3</td>
+                        <td align="center" title="Trọng số: 40%">8.5</td>
+                        <td align="center" title=""></td>
+                        <td align="center" title=""></td>
+                        <td align="center" title="Trọng số: 60%">5</td>
+                        <td align="center">6.4</td>
+                        <td>&nbsp;</td></tr><tr><td align="center">6</td><td align="center" title="PE002.K26">PE002</td><td>&nbsp;Giáo dục thể chất 2</td><td align="center"></td>
+                        <td align="center" title=""></td>
+                        <td align="center" title=""></td>
+                        <td align="center" title=""></td>
+                        <td align="center" title="Trọng số: 100%">8</td>
+                        <td align="center">8</td>
+                        <td>&nbsp;</td></tr><tr><td align="center">7</td><td align="center" title="PH002.K23">PH002</td><td>&nbsp;Nhập môn mạch số</td><td align="center">4</td>
+                        <td align="center" title="Trọng số: 15%">7.5</td>
+                        <td align="center" title=""></td>
+                        <td align="center" title="Trọng số: 20%">8.5</td>
+                        <td align="center" title="Trọng số: 65%">8</td>
+                        <td align="center">8</td>
+                        <td>&nbsp;</td></tr><tr><td align="center">&nbsp;</td><td align="center">&nbsp;</td><td>&nbsp;<strong>Trung bình học kỳ</strong></td><td align="center"><strong>19</strong></td>
+                    <td align="center">&nbsp;</td><td align="center">&nbsp;</td><td align="center">&nbsp;</td><td align="center">&nbsp;</td><td align="center"><strong>8.29</strong></td><td>&nbsp;</td></tr><tr><td colspan="10"><strong>&nbsp;&nbsp;&nbsp;Học kỳ 1 - Năm học 2019-2020 </strong></td></tr><tr><td align="center">1</td><td align="center" title="ENGA1.K18">ENGA1</td><td>&nbsp;Anh văn sơ cấp 1</td><td align="center"></td>
+                        <td align="center" title=""></td>
+                        <td align="center" title=""></td>
+                        <td align="center" title=""></td>
+                        <td align="center" title=""></td>
+                        <td align="center">7.7</td>
+                        <td>&nbsp;</td></tr><tr><td align="center">2</td><td align="center" title="IT001.K12">IT001</td><td>&nbsp;Nhập môn lập trình</td><td align="center">4</td>
+                        <td align="center" title="Trọng số: 10%">8</td>
+                        <td align="center" title="Trọng số: 20%">10</td>
+                        <td align="center" title="Trọng số: 30%">10</td>
+                        <td align="center" title="Trọng số: 40%">8</td>
+                        <td align="center">9</td>
+                        <td>&nbsp;</td></tr><tr><td align="center">3</td><td align="center" title="IT009.K19">IT009</td><td>&nbsp;Giới thiệu ngành</td><td align="center">2</td>
+                        <td align="center" title="Trọng số: 50%">9.5</td>
+                        <td align="center" title=""></td>
+                        <td align="center" title=""></td>
+                        <td align="center" title="Trọng số: 50%">8.5</td>
+                        <td align="center">9</td>
+                        <td>&nbsp;</td></tr><tr><td align="center">4</td><td align="center" title="MA003.K12">MA003</td><td>&nbsp;Đại số tuyến tính</td><td align="center">3</td>
+                        <td align="center" title="Trọng số: 20%">10</td>
+                        <td align="center" title="Trọng số: 20%">8</td>
+                        <td align="center" title=""></td>
+                        <td align="center" title="Trọng số: 60%">7.5</td>
+                        <td align="center">8.1</td>
+                        <td>&nbsp;</td></tr><tr><td align="center">5</td><td align="center" title="MA006.K12">MA006</td><td>&nbsp;Giải tích</td><td align="center">4</td>
+                        <td align="center" title="Trọng số: 20%">9.5</td>
+                        <td align="center" title="Trọng số: 20%">7.5</td>
+                        <td align="center" title=""></td>
+                        <td align="center" title="Trọng số: 60%">9</td>
+                        <td align="center">8.8</td>
+                        <td>&nbsp;</td></tr><tr><td align="center">6</td><td align="center" title="PE001.K12">PE001</td><td>&nbsp;Giáo dục thể chất 1</td><td align="center"></td>
+                        <td align="center" title=""></td>
+                        <td align="center" title="Trọng số: 50%">10</td>
+                        <td align="center" title=""></td>
+                        <td align="center" title="Trọng số: 100%">8</td>
+                        <td align="center">9</td>
+                        <td>&nbsp;</td></tr><tr><td align="center">7</td><td align="center" title="PH001.K12">PH001</td><td>&nbsp;Nhập môn điện tử</td><td align="center">3</td>
+                        <td align="center" title="Trọng số: 10%">10</td>
+                        <td align="center" title="Trọng số: 20%">9</td>
+                        <td align="center" title=""></td>
+                        <td align="center" title="Trọng số: 70%">7</td>
+                        <td align="center">7.7</td>
+                        <td>&nbsp;</td></tr><tr><td align="center">&nbsp;</td><td align="center">&nbsp;</td><td>&nbsp;<strong>Trung bình học kỳ</strong></td><td align="center"><strong>16</strong></td>
+                    <td align="center">&nbsp;</td><td align="center">&nbsp;</td><td align="center">&nbsp;</td><td align="center">&nbsp;</td><td align="center"><strong>8.54</strong></td><td>&nbsp;</td></tr><tr><td colspan="3"><strong>&nbsp;&nbsp;Số tín chỉ đã học</strong></td><td align="center"><strong>119</strong></td><td align="center">&nbsp;</td><td align="center">&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td></tr><tr><td colspan="3"><strong>&nbsp;&nbsp;Số tín chỉ tích lũy</strong></td><td align="center"><strong>119</strong></td><td align="center">&nbsp;</td><td align="center">&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td></tr><tr><td colspan="3"><strong>&nbsp;&nbsp;Điểm trung bình chung</strong></td><td align="center">&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td><td align="center">&nbsp;</td><td>&nbsp;</td><td align="center"><strong>8.19</strong></td><td>&nbsp;</td></tr><tr><td colspan="3"><strong>&nbsp;&nbsp;Điểm trung bình chung tích lũy</strong></td><td align="center">&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td><td align="center">&nbsp;</td><td>&nbsp;</td><td align="center"><strong>8.19</strong></td><td>&nbsp;</td></tr></tbody></table><font color="red"><strong>Lưu ý:<br> &nbsp;&nbsp;&nbsp; Các môn có tô màu là những môn có học lại hoặc cải thiện (không tính vào điểm trung bình chung).</strong></font><input type="hidden" name="form_build_id" value="form-N_MZ7bOtFS-SXv3n3dL6w2lI9mFWK40VYhIQGgHEOM4">
+<input type="hidden" name="form_token" value="7mNjfJ8RuHQ1KfukIso3EB8PzAe5qwOZKRJ-G5zB-ug">
+<input type="hidden" name="form_id" value="uit_sinhvien_tracuu_kqhoctap">
+</div></form></div>
+    <div class="print-footer" bis_skin_checked="1"></div>
+    <!-- <hr class="print-hr" />
+        <div class="print-links"></div>
+     -->
+  
+
+</body></html>
